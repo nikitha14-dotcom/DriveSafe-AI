@@ -7,6 +7,7 @@ import time
 from ultralytics import YOLO
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from eye_closure import eyes_closed, update_drowsiness
 
 
 # ============================================================
@@ -14,7 +15,7 @@ from mediapipe.tasks.python import vision
 # ============================================================
 
 FACE_MODEL = "models/face_landmarker.task"
-YOLO_MODEL = "models/yolo11n.pt"
+YOLO_MODEL = "yolo11n.pt"
 ALARM_PATH = "sounds/alert.wav"
 
 EAR_THRESHOLD = 0.21
@@ -32,7 +33,8 @@ base_options = python.BaseOptions(
 options = vision.FaceLandmarkerOptions(
     base_options=base_options,
     running_mode=vision.RunningMode.VIDEO,
-    num_faces=1
+    num_faces=1,
+    output_face_blendshapes=True
 )
 
 landmarker = vision.FaceLandmarker.create_from_options(options)
@@ -153,7 +155,7 @@ print("==============================================")
 # VARIABLES
 # ============================================================
 
-frame_timestamp = 0
+frame_timestamp = -1
 eyes_closed_start = None
 drowsy = False
 phone_detected = False
@@ -190,12 +192,11 @@ try:
             data=rgb_frame
         )
 
+        frame_timestamp = max(frame_timestamp + 1, int(time.monotonic() * 1000))
         result = landmarker.detect_for_video(
             mp_image,
             frame_timestamp
         )
-
-        frame_timestamp += 33
 
         # Default values
         ear = 0
@@ -232,14 +233,12 @@ try:
             )
 
             # Eyes closed
-            if ear < EAR_THRESHOLD:
-
-                if eyes_closed_start is None:
-                    eyes_closed_start = time.time()
-
-                closed_duration = (
-                    time.time() - eyes_closed_start
-                )
+            blendshapes = result.face_blendshapes[0] if result.face_blendshapes else []
+            eyes_closed_start, drowsy, closed_duration = update_drowsiness(
+                eyes_closed(ear, blendshapes, EAR_THRESHOLD),
+                eyes_closed_start, time.monotonic(), DROWSY_TIME
+            )
+            if eyes_closed_start is not None:
 
                 cv2.putText(
                     frame,
@@ -251,15 +250,12 @@ try:
                     2
                 )
 
-                if closed_duration >= DROWSY_TIME:
+                if drowsy:
 
                     drowsy = True
                     status = "DROWSINESS DETECTED"
 
             else:
-
-                eyes_closed_start = None
-                drowsy = False
 
                 cv2.putText(
                     frame,

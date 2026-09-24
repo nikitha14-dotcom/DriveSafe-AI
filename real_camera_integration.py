@@ -3,6 +3,7 @@ import time
 import mediapipe as mp
 import numpy as np
 from phone_module import PhoneDetector
+from eye_closure import eyes_closed, update_drowsiness
 
 
 MODEL_PATH = "models/face_landmarker.task"
@@ -78,7 +79,8 @@ base_options = mp.tasks.BaseOptions(
 options = mp.tasks.vision.FaceLandmarkerOptions(
     base_options=base_options,
     running_mode=mp.tasks.vision.RunningMode.VIDEO,
-    num_faces=1
+    num_faces=1,
+    output_face_blendshapes=True
 )
 
 landmarker = mp.tasks.vision.FaceLandmarker.create_from_options(
@@ -109,7 +111,7 @@ mouth_open_start = None
 drowsiness = False
 yawning = False
 
-timestamp_ms = 0
+timestamp_ms = -1
 
 while True:
     ret, frame = cap.read()
@@ -129,7 +131,7 @@ while True:
         data=rgb
     )
 
-    timestamp_ms += 33
+    timestamp_ms = max(timestamp_ms + 1, int(time.monotonic() * 1000))
 
     face_result = landmarker.detect_for_video(
         mp_image,
@@ -157,17 +159,11 @@ while True:
         ear = (left_ear + right_ear) / 2.0
         mar = calculate_mar(landmarks)
 
-        if ear < EAR_THRESHOLD:
-
-            if eyes_closed_start is None:
-                eyes_closed_start = time.time()
-
-            if time.time() - eyes_closed_start >= DROWSY_TIME:
-                drowsiness = True
-
-        else:
-            eyes_closed_start = None
-            drowsiness = False
+        blendshapes = face_result.face_blendshapes[0] if face_result.face_blendshapes else []
+        eyes_closed_start, drowsiness, _ = update_drowsiness(
+            eyes_closed(ear, blendshapes, EAR_THRESHOLD),
+            eyes_closed_start, time.monotonic(), DROWSY_TIME
+        )
 
         if mar >= MAR_THRESHOLD:
 

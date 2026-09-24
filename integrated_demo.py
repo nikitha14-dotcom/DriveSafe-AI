@@ -7,6 +7,7 @@ from ultralytics import YOLO
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from eye_closure import eyes_closed, update_drowsiness
 
 
 # ============================================================
@@ -57,7 +58,8 @@ base_options = python.BaseOptions(
 face_options = vision.FaceLandmarkerOptions(
     base_options=base_options,
     running_mode=vision.RunningMode.VIDEO,
-    num_faces=1
+    num_faces=1,
+    output_face_blendshapes=True
 )
 
 landmarker = vision.FaceLandmarker.create_from_options(
@@ -289,7 +291,7 @@ drowsy = False
 yawn_start = None
 yawning = False
 
-timestamp = 0
+timestamp = -1
 
 
 # ============================================================
@@ -333,12 +335,12 @@ try:
             data=rgb_frame
         )
 
+        # VIDEO mode requires elapsed milliseconds, not one millisecond per frame.
+        timestamp = max(timestamp + 1, int(time.monotonic() * 1000))
         result = landmarker.detect_for_video(
             mp_image,
             timestamp
         )
-
-        timestamp += 1
 
 
         ear = 0.0
@@ -387,33 +389,15 @@ try:
             # DROWSINESS
             # =================================================
 
-            if ear < EAR_THRESHOLD:
-
-                if eyes_closed_start is None:
-
-                    eyes_closed_start = time.time()
-
-                closed_time = (
-                    time.time()
-                    - eyes_closed_start
-                )
-
-                if closed_time >= DROWSINESS_TIME:
-
-                    if not drowsy:
-
-                        print(
-                            "[DROWSINESS DETECTED] "
-                            "Driver eyes remained closed."
-                        )
-
-                    drowsy = True
-
-            else:
-
-                eyes_closed_start = None
-
-                drowsy = False
+            blendshapes = result.face_blendshapes[0] if result.face_blendshapes else []
+            eyes_closed_start, currently_drowsy, closed_time = update_drowsiness(
+                eyes_closed(ear, blendshapes, EAR_THRESHOLD),
+                eyes_closed_start, time.monotonic(), DROWSINESS_TIME
+            )
+            if currently_drowsy and not drowsy:
+                print("[DROWSINESS DETECTED] Driver eyes remained closed.")
+                play_alarm()
+            drowsy = currently_drowsy
 
 
             # =================================================

@@ -2,6 +2,7 @@ modules = ["python-3.12"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["SDL2", "SDL2_image", "SDL2_mixer", "SDL2_ttf", "cacert", "cairo", "chromedriver", "ffmpeg-full", "fontconfig", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "lcms2", "libGL", "libGLU", "libcxx", "libffi", "libiconv", "libimagequant", "libjpeg", "libjpeg_turbo", "libpng", "libtiff", "libwebp", "libxcrypt", "openjpeg", "pkg-config", "portaudio", "portmidi", "qhull", "tcl", "tk", "which", "zlib"]
 
 [agent]
 expertMode = true

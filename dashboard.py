@@ -79,7 +79,7 @@ def build_dashboard():
                      f"Safety: {status.get('safety_level', '—')}    Mode: {status.get('mode', '—')}",
                      f"Phone {detections.get('phone', False)} | Drowsiness {detections.get('drowsiness', False)} | "
                      f"Yawning {detections.get('yawning', False)} | Distraction {detections.get('distraction', False)} | "
-                     f"Accident {detections.get('accident', False)}",
+                     f"Accident detection: {status.get('accident_detection', 'NOT_INTEGRATED')}",
                      f"Speed: {status.get('speed', '—')} km/h ({status.get('speed_source', 'SIMULATED GPS')}) | "
                      f"Location: {loc} (SIMULATED)"]
             live.configure(text="\n".join(lines))
@@ -91,7 +91,7 @@ def build_dashboard():
                                  f"Drowsiness {status.get('detections', {}).get('drowsiness', False)} | "
                                  f"Yawning {status.get('detections', {}).get('yawning', False)} | "
                                  f"Distraction {status.get('detections', {}).get('distraction', False)} | "
-                                 f"Accident {status.get('detections', {}).get('accident', False)}"))
+                                 f"Accident detection: {status.get('accident_detection', 'NOT_INTEGRATED')}"))
         for item in tree.get_children():
             tree.delete(item)
         for event in get_events(limit=200):

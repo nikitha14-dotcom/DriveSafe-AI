@@ -41,7 +41,7 @@ Start the primary camera application:
 python real_camera_integration.py
 ```
 
-The app opens one real webcam, performs driver monitoring, and serves the dashboard on this PC at `http://127.0.0.1:5000/`. The speed is a demonstration value: press **0** to stop, **1** to simulate 50 km/h, and **2** to simulate 80 km/h. Driving-behavior warnings are enabled only in simulated driving or emergency mode. Press **E** for the labeled emergency-workflow demonstration, **N** to return to normal mode, and **Q** to quit. Emergency mode leaves AI monitoring active and overrides the simulated speed restriction.
+The app opens one real webcam, performs driver monitoring, and serves the dashboard on this PC at `http://127.0.0.1:5000/`. The speed is a demonstration value: press **0** to stop, **1** to simulate 50 km/h, and **2** to simulate 80 km/h. Driving-behavior warnings are enabled only in simulated driving or emergency mode. Press **E** for the emergency workflow simulation, **A** for a manual accident-workflow simulation (it does not detect a crash), **N** to return to normal mode, and **Q** to quit. Emergency mode leaves AI monitoring active and overrides the simulated speed restriction.
 
 For phone access on the same trusted Wi-Fi, start in Command Prompt with:
 
@@ -104,7 +104,7 @@ The manual camera checks below need the runtime packages, camera, model files, a
 3. Show a phone in frame for at least two confirmed detections: expect `PHONE DETECTED`. With no phone in view, the app must not claim one.
 4. Close both eyes for about two seconds: expect `DROWSINESS DETECTED`.
 5. Hold your mouth open past the yawning threshold: expect `YAWNING DETECTED`.
-6. Press **E** for the emergency simulation, confirm the V2X recipients are reported, then press **N**. AI monitoring continues throughout.
+6. Press **E** for the emergency simulation or **A** for the manual accident-workflow simulation. Confirm the V2X recipients are reported, then press **N**. AI monitoring continues throughout; the A action is not an accident detector.
 
 ## Limitations and future scope
 

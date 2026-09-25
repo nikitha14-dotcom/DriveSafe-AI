@@ -49,6 +49,7 @@
     <div class="count"><span>Drowsiness</span><b id="drowsiness-count">0</b></div>
     <div class="count"><span>Yawning</span><b id="yawning-count">0</b></div>
     <div class="count"><span>Distraction</span><b id="distraction-count">0</b></div>
+    <div class="count"><span>Accident workflow demos</span><b id="accident-count">0</b></div>
     <div class="count"><span>High risk</span><b id="high">0</b></div>
     <div class="count"><span>Warnings</span><b id="warnings">0</b></div>
     <div class="count"><span>Emergency demos</span><b id="emergencies">0</b></div>
@@ -91,6 +92,7 @@
       byId('drowsiness-count').textContent = counts.DROWSINESS || 0;
       byId('yawning-count').textContent = counts.YAWNING || 0;
       byId('distraction-count').textContent = counts.DISTRACTION_DETECTED || 0;
+      byId('accident-count').textContent = counts.ACCIDENT_DEMO || 0;
       const list = byId('events'); list.replaceChildren();
       for (const event of (data.events || [])) {
         const row = document.createElement('article'); row.className = 'event';

@@ -94,10 +94,11 @@ def run_camera(camera_id=0):
     timestamp_ms = -1
     emergency_mode = False
     current_speed = 0.0  # Demonstration value; no vehicle interface is connected.
-    print("DriveSafe AI camera monitoring started. Speed/GPS are simulated; press 1/2 for demo speed, 0 to stop, E for emergency demo, Q to quit.")
+    print("DriveSafe AI camera monitoring started. Speed/GPS are simulated; 1/2 set demo speed, 0 stops, E starts emergency demo, A runs accident-workflow demo, Q quits.")
     runtime_state.update(camera="ACTIVE", driver_status="DRIVER SAFE", mode="NORMAL",
                          speed=current_speed, speed_source="SIMULATED GPS", gps=gps.snapshot(),
                          safety_level=0, safety_status="NORMAL",
+                         accident_detection="NOT_INTEGRATED", emergency=None, last_event=None,
                          detections={"phone": False, "drowsiness": False,
                                      "yawning": False, "distraction": False,
                                      "accident": False}, v2x=None)
@@ -233,7 +234,7 @@ def run_camera(camera_id=0):
                      f"Speed: {current_speed:.0f} km/h (DEMO SPEED)",
                      f"Speed rule: {driving_state['speed_rule']}",
                      f"GPS: {location['latitude']:.5f}, {location['longitude']:.5f} (SIMULATED)",
-                     f"Mode: {'EMERGENCY' if emergency_mode else 'NORMAL'} | 0 stop, 1 drive, 2 fast | E: emergency | Q: quit"]
+                     f"Mode: {'EMERGENCY' if emergency_mode else 'NORMAL'} | 0/1/2: demo speed | E: emergency | A: accident workflow demo | Q: quit"]
             for row, line in enumerate(lines):
                 cv2.putText(frame, line, (18, 28 + row * 29), cv2.FONT_HERSHEY_SIMPLEX,
                             0.56, color if row in (1, 2) else (245, 245, 245), 2)
@@ -250,18 +251,28 @@ def run_camera(camera_id=0):
             if key == ord("2"):
                 current_speed = 80.0
                 print("Simulated driving speed set to 80 km/h; AI behavior monitoring active.")
-            if key in (ord("e"), ord("E")) and not emergency_mode:
+            if key in (ord("e"), ord("E"), ord("a"), ord("A")) and not emergency_mode:
+                accident_demo = key in (ord("a"), ord("A"))
+                event_type = "ACCIDENT_DEMO" if accident_demo else "EMERGENCY_DEMO"
                 emergency_mode = True
                 driving_system.emergency_mode()
-                notification = emergency_service.trigger("EMERGENCY_DEMO", speed=current_speed)
-                event = log_event("EMERGENCY_DEMO", 3,
-                                  "Manual emergency workflow demonstration; not a camera accident detection. "
+                notification = emergency_service.trigger(event_type, speed=current_speed)
+                event_message = (
+                    "Manual accident workflow demonstration; no accident was detected by the camera. "
+                    if accident_demo else
+                    "Manual emergency workflow demonstration; not a camera accident detection. "
+                )
+                event = log_event(event_type, 3, event_message +
                                   f"Location: {location['latitude']:.6f}, {location['longitude']:.6f}.")
                 runtime_state.update(mode="EMERGENCY", safety_level=3,
                                      safety_status="EMERGENCY", v2x=notification["v2x"],
-                                     emergency=notification, last_event=event)
-                trigger_alert("EMERGENCY MODE - simulated notification and V2X sent", level=3)
-                print("V2X ALERT SENT; CAR_B, CAR_C and CAR_D RECEIVED. Notification is simulated.")
+                                     emergency=notification, last_event=event,
+                                     accident_detection=("MANUAL WORKFLOW DEMO - NOT DETECTED"
+                                                          if accident_demo else "NOT_INTEGRATED"))
+                message = ("ACCIDENT WORKFLOW DEMO (manual; no accident detected)"
+                           if accident_demo else "EMERGENCY MODE DEMO")
+                trigger_alert(message + " - simulated notification and V2X sent", level=3)
+                print(f"{event_type}: V2X sent to CAR_B, CAR_C and CAR_D; notification is simulated.")
             if key in (ord("n"), ord("N")) and emergency_mode:
                 emergency_mode = False
                 driving_system.normal_mode()
@@ -270,7 +281,8 @@ def run_camera(camera_id=0):
                     yawning_detected=yawning, distraction_detected=distraction,
                 )
                 runtime_state.update(mode="NORMAL", safety_level=level,
-                                     safety_status=level_name)
+                                     safety_status=level_name,
+                                     accident_detection="NOT_INTEGRATED")
                 print("Returned to NORMAL MODE.")
     finally:
         runtime_state.update(camera="STOPPED", driver_status="NOT MONITORING")

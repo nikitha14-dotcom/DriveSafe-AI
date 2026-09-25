@@ -21,7 +21,7 @@ def api_status():
         "system": "DriveSafe AI", "status": "Running",
         "camera": state["camera"], "driver_status": state["driver_status"],
         "detections": state["detections"],
-        "accident_detection": "NOT_INTEGRATED",
+        "accident_detection": state.get("accident_detection", "NOT_INTEGRATED"),
         "vehicle_state": state["vehicle_state"],
         "ai_monitoring": state["camera"] == "ACTIVE",
         "driving_alerts_enabled": (state["camera"] == "ACTIVE" and
@@ -56,7 +56,7 @@ def api_vehicle():
                     "ai_monitoring": state["camera"] == "ACTIVE",
                     "driving_alerts_enabled": (state["camera"] == "ACTIVE" and
                                                (state["vehicle_state"] == "DRIVING" or state["mode"] == "EMERGENCY")),
-                    "accident_detection": "NOT_INTEGRATED",
+                    "accident_detection": state.get("accident_detection", "NOT_INTEGRATED"),
                     "gps": state["gps"]})
 
 
@@ -66,19 +66,27 @@ def api_emergency():
     if request.remote_addr not in {"127.0.0.1", "::1"}:
         return jsonify({"error": "Run the emergency demonstration at the PC."}), 403
     payload = request.get_json(silent=True) or {}
-    event_type = str(payload.get("event_type", "EMERGENCY_DEMO"))[:80]
+    event_type = str(payload.get("event_type", "EMERGENCY_DEMO"))
+    if event_type not in {"EMERGENCY_DEMO", "ACCIDENT_DEMO"}:
+        return jsonify({"error": "Use EMERGENCY_DEMO or ACCIDENT_DEMO."}), 400
     state = runtime_state.snapshot()
     if state.get("mode") == "EMERGENCY" and state.get("emergency"):
         return jsonify(state["emergency"]), 200
     speed = state.get("speed", 0.0)
     notification = EmergencyService().trigger(event_type, speed=speed)
-    event = log_event("EMERGENCY_DEMO", 3,
-                      "API-triggered emergency simulation; no accident was detected and no services contacted. "
+    event_message = (
+        "Manual accident workflow demo; no accident was detected and no services contacted. "
+        if event_type == "ACCIDENT_DEMO" else
+        "API-triggered emergency simulation; no accident was detected and no services contacted. "
+    )
+    event = log_event(event_type, 3, event_message +
                       f"Location: {notification['location']['latitude']:.6f}, "
                       f"{notification['location']['longitude']:.6f}.")
     runtime_state.update(mode="EMERGENCY", safety_level=3,
                          safety_status="EMERGENCY", v2x=notification["v2x"],
-                         emergency=notification, last_event=event)
+                         emergency=notification, last_event=event,
+                         accident_detection=("MANUAL WORKFLOW DEMO - NOT DETECTED"
+                                              if event_type == "ACCIDENT_DEMO" else "NOT_INTEGRATED"))
     try:
         from alert_manager import trigger_alert
         trigger_alert("EMERGENCY MODE - simulated notification and V2X sent", level=3)

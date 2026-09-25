@@ -170,6 +170,21 @@ class CoreServiceTests(unittest.TestCase):
                                       environ_overrides={"REMOTE_ADDR": "192.168.1.25"})
         self.assertEqual(response.status_code, 403)
 
+    def test_accident_workflow_is_manual_and_labeled(self):
+        client = app.test_client()
+        with patch("alert_manager.trigger_alert"):
+            response = client.post("/api/emergency", json={"event_type": "ACCIDENT_DEMO"})
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.get_json()["event_type"], "ACCIDENT_DEMO")
+        status = client.get("/api/status").get_json()
+        self.assertEqual(status["accident_detection"], "MANUAL WORKFLOW DEMO - NOT DETECTED")
+        self.assertFalse(status["detections"]["accident"])
+        events = client.get("/api/events").get_json()
+        accident_events = [event for event in events["events"] if event["event_type"] == "ACCIDENT_DEMO"]
+        self.assertEqual(len(accident_events), 1)
+        self.assertIn("no accident was detected", accident_events[0]["message"])
+        self.assertEqual(client.post("/api/emergency", json={"event_type": "ACCIDENT"}).status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

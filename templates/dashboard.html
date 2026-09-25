@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102433">
+  <title>DriveSafe AI · Live dashboard</title>
+  <style>
+    :root{color-scheme:light;--ink:#102433;--muted:#637889;--paper:#f3f7fa;--card:#fff;--line:#dce6ed;--teal:#087e75;--red:#b42332;--amber:#a05a00}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+    header{background:var(--ink);color:white;padding:20px max(18px,calc((100vw - 1100px)/2)) 18px}
+    header h1{font-size:1.55rem;margin:0}header p{color:#c6d5dd;margin:5px 0 0;font-size:.9rem}
+    main{max-width:1100px;margin:auto;padding:18px}.top{display:grid;grid-template-columns:1.2fr 2fr;gap:14px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 2px 9px #1024330a}
+    .level{display:flex;align-items:center;justify-content:space-between;min-height:100px}.level strong{font-size:1.65rem}.level span{color:var(--muted)}
+    .pill{border-radius:999px;padding:7px 11px;background:#e5f6ef;color:#087e50;font-weight:700}.pill.warn{background:#fff1d8;color:var(--amber)}.pill.high{background:#ffe1da;color:#b54708}.pill.emergency{background:#fde4e7;color:var(--red)}
+    .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.meta div{background:#f5f8fa;border-radius:10px;padding:10px}.meta small{display:block;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}.meta b{display:block;margin-top:3px}
+    h2{font-size:1rem;margin:21px 0 10px}.counts{display:grid;grid-template-columns:repeat(5,minmax(115px,1fr));gap:10px}.count{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px}.count span{display:block;color:var(--muted);font-size:.8rem}.count b{font-size:1.7rem}
+    .events{padding:0;overflow:hidden}.event{padding:12px 15px;border-bottom:1px solid var(--line)}.event:last-child{border-bottom:0}.event b{font-size:.9rem}.event p{margin:3px 0;color:var(--muted);font-size:.88rem;overflow-wrap:anywhere}.event small{color:#8293a0}
+    .notice{font-size:.8rem;color:var(--muted);margin:14px 2px}.offline{color:var(--red);font-weight:700}
+    @media(max-width:700px){main{padding:12px}.top{grid-template-columns:1fr}.counts{grid-template-columns:repeat(2,minmax(0,1fr))}.meta{grid-template-columns:repeat(2,minmax(0,1fr))}header{padding:17px 15px}}
+  </style>
+</head>
+<body>
+<header><h1>DriveSafe AI</h1><p>Live driver safety dashboard · automatically refreshes every 2 seconds</p></header>
+<main>
+  <section class="top">
+    <div class="card level"><div><span>Current safety</span><br><strong id="level">Level 0</strong></div><span id="badge" class="pill">NORMAL</span></div>
+    <div class="card meta">
+      <div><small>Camera</small><b id="camera">Connecting…</b></div>
+      <div><small>Driver</small><b id="driver">—</b></div>
+      <div><small>Mode</small><b id="mode">—</b></div>
+      <div><small>Phone</small><b id="phone">—</b></div>
+      <div><small>Drowsiness</small><b id="drowsiness">—</b></div>
+      <div><small>Yawning / distraction</small><b id="other">—</b></div>
+      <div><small>Speed (simulated)</small><b id="speed">—</b></div>
+      <div><small>GPS (simulated)</small><b id="gps">—</b></div>
+      <div><small>V2X demo</small><b id="v2x">—</b></div>
+    </div>
+  </section>
+  <h2>Recorded detection counts</h2>
+  <section class="counts" aria-label="Detection totals">
+    <div class="count"><span>Total events</span><b id="total">0</b></div>
+    <div class="count"><span>Phone</span><b id="phone-count">0</b></div>
+    <div class="count"><span>Drowsiness</span><b id="drowsiness-count">0</b></div>
+    <div class="count"><span>Yawning</span><b id="yawning-count">0</b></div>
+    <div class="count"><span>Distraction</span><b id="distraction-count">0</b></div>
+    <div class="count"><span>High risk</span><b id="high">0</b></div>
+    <div class="count"><span>Warnings</span><b id="warnings">0</b></div>
+    <div class="count"><span>Emergency demos</span><b id="emergencies">0</b></div>
+  </section>
+  <h2>Recent safety events</h2>
+  <section class="card events" id="events"><div class="event">Waiting for camera and event history…</div></section>
+  <p class="notice">Counts are saved detection events (one per detection start, not one per video frame). Camera signals can produce false detections. GPS, speed, V2X and emergency actions are simulations. Phone access is read-only and works on the same trusted Wi-Fi when LAN access is enabled on the PC.</p>
+  <p id="connection" class="notice">Connecting to DriveSafe…</p>
+</main>
+<script>
+  const byId = id => document.getElementById(id);
+  const flag = value => value ? "DETECTED" : "Clear";
+  async function refresh() {
+    try {
+      const [statusResponse, eventsResponse] = await Promise.all([
+        fetch('/api/status', {cache:'no-store'}), fetch('/api/events?limit=100', {cache:'no-store'})
+      ]);
+      if (!statusResponse.ok || !eventsResponse.ok) throw new Error('API returned an error');
+      const status = await statusResponse.json(), data = await eventsResponse.json();
+      const d = status.detections || {}, summary = data.summary || {}, counts = data.counts_by_type || {};
+      const level = Number(status.safety_level || 0), badge = byId('badge');
+      byId('level').textContent = `Level ${level}`;
+      badge.textContent = status.safety_status || 'NORMAL';
+      badge.className = 'pill' + (level === 1 ? ' warn' : level === 2 ? ' high' : level >= 3 ? ' emergency' : '');
+      byId('camera').textContent = status.camera || 'UNKNOWN';
+      byId('driver').textContent = status.driver_status || '—';
+      byId('mode').textContent = status.mode || '—';
+      byId('phone').textContent = flag(d.phone);
+      byId('drowsiness').textContent = flag(d.drowsiness);
+      byId('other').textContent = `${d.yawning ? 'Yawn' : 'No yawn'} / ${d.distraction ? 'Distracted' : 'Clear'}`;
+      byId('total').textContent = summary.total_events || 0;
+      byId('warnings').textContent = summary.warnings || 0;
+      byId('high').textContent = summary.high_risk || 0;
+      byId('emergencies').textContent = counts.EMERGENCY_DEMO || 0;
+      byId('phone-count').textContent = counts.PHONE_DETECTED || 0;
+      byId('drowsiness-count').textContent = counts.DROWSINESS || 0;
+      byId('yawning-count').textContent = counts.YAWNING || 0;
+      byId('distraction-count').textContent = counts.DISTRACTION_DETECTED || 0;
+      const list = byId('events'); list.replaceChildren();
+      for (const event of (data.events || [])) {
+        const row = document.createElement('article'); row.className = 'event';
+        const title = document.createElement('b'); title.textContent = `${event.event_type} · Level ${event.safety_level}`;
+        const message = document.createElement('p'); message.textContent = event.message || '';
+        const when = document.createElement('small'); when.textContent = event.timestamp || '';
+        row.append(title, message, when); list.append(row);
+      }
+      if (!data.events || data.events.length === 0) list.textContent = 'No detections recorded yet.';
+      byId('connection').textContent = `Connected · last updated ${new Date().toLocaleTimeString()}`;
+      byId('connection').classList.remove('offline');
+    } catch (error) {
+      byId('connection').textContent = 'Disconnected. Keep the camera app running and check that the phone and PC are on the same Wi-Fi.';
+      byId('connection').classList.add('offline');
+    }
+  }
+  refresh(); setInterval(refresh, 2000);
+</script>
+</body>
+</html>

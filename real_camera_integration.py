@@ -4,6 +4,9 @@ Camera observations are real. Speed, location, emergency notifications and V2X
 delivery are software simulations. Press E to demonstrate an emergency workflow.
 """
 
+import ipaddress
+import os
+import socket
 import time
 from pathlib import Path
 from threading import Thread
@@ -32,6 +35,18 @@ def calculate_ear(landmarks, eye):
 def calculate_mar(landmarks):
     horizontal = distance(landmarks[61], landmarks[291])
     return 0.0 if horizontal == 0 else distance(landmarks[13], landmarks[14]) / horizontal
+
+
+def _local_ipv4():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("192.0.2.1", 80))
+        address = ipaddress.ip_address(sock.getsockname()[0])
+        return str(address) if address.is_private else None
+    except OSError:
+        return None
+    finally:
+        sock.close()
 
 
 def run_camera(camera_id=0):
@@ -87,12 +102,21 @@ def run_camera(camera_id=0):
                                      "yawning": False, "distraction": False,
                                      "accident": False}, v2x=None)
     api_server = None
+    lan_access = os.environ.get("DRIVESAFE_LAN", "").strip() == "1"
+    lan_ip = _local_ipv4() if lan_access else None
+    api_host = (lan_ip or "0.0.0.0") if lan_access else "127.0.0.1"
     try:
         from werkzeug.serving import make_server
         from api_test import app as api_app
-        api_server = make_server("127.0.0.1", 5000, api_app, threaded=True)
+        api_server = make_server(api_host, 5000, api_app, threaded=True)
         Thread(target=api_server.serve_forever, daemon=True).start()
-        print("Local API started at http://127.0.0.1:5000")
+        dashboard_host = lan_ip or "127.0.0.1"
+        print(f"Dashboard: http://{dashboard_host}:5000/")
+        if lan_access:
+            if lan_ip:
+                print(f"Phone dashboard (same Wi-Fi): http://{lan_ip}:5000/")
+            else:
+                print("Phone dashboard: open http://<this-PC-IPv4>:5000/ on the same Wi-Fi.")
     except OSError as exc:
         print(f"Local API was not started: {exc}")
 
@@ -168,14 +192,18 @@ def run_camera(camera_id=0):
                 "YAWNING": (yawning, 1),
                 "DISTRACTION_DETECTED": (distraction, 1),
             }
+            new_alerts = []
             for event_type, (is_active, event_level) in event_values.items():
                 if is_active and not active[event_type]:
                     details = f"{event_type.replace('_', ' ').title()} detected by real camera AI."
                     if event_type == "DISTRACTION_DETECTED":
                         details += f" Sustained head direction: {direction}. This does not establish phone use."
                     log_event(event_type, event_level, details)
-                    trigger_alert(details)
+                    new_alerts.append((event_level, details))
                 active[event_type] = is_active
+            if new_alerts:
+                alert_level = max(level for level, _ in new_alerts)
+                trigger_alert(" | ".join(message for _, message in new_alerts), level=alert_level)
 
             location = gps.update(speed=current_speed)
             runtime_state.update(
@@ -217,7 +245,7 @@ def run_camera(camera_id=0):
                 runtime_state.update(mode="EMERGENCY", safety_level=3,
                                      safety_status="EMERGENCY", v2x=notification["v2x"],
                                      emergency=notification, last_event=event)
-                trigger_alert("EMERGENCY MODE - simulated notification and V2X sent")
+                trigger_alert("EMERGENCY MODE - simulated notification and V2X sent", level=3)
                 print("V2X ALERT SENT; CAR_B, CAR_C and CAR_D RECEIVED. Notification is simulated.")
             if key in (ord("n"), ord("N")) and emergency_mode:
                 emergency_mode = False

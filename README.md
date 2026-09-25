@@ -5,9 +5,9 @@ DriveSafe AI is a university prototype for driver-safety monitoring. It combines
 ## Features
 
 - **Real camera AI:** YOLO phone detection (COCO class 67, confidence 0.70, two consecutive frames), MediaPipe eye-closure monitoring, sustained yawning detection, and sustained left/right/down head-direction distraction detection.
-- **Risk levels:** accident/emergency level 3, drowsiness level 2, and phone/distraction/yawning level 1. The camera app logs and sounds an alert only when an event starts, rather than once per frame.
+- **Risk levels:** emergency demonstration level 3, drowsiness level 2, and phone/distraction/yawning level 1. Accident detection is not integrated in the camera app. Level-specific alarms and event records occur when a detection starts, not once per frame.
 - **Events:** SQLite event history at `database/drivesafe_events.db`. `DRIVESAFE_DB_PATH` can point to a different database file.
-- **Dashboard and API:** Tkinter dashboard reads event history and polls the local API when it is running. The API exposes status, event history, vehicle state, emergency simulation, and V2X status.
+- **Dashboard and API:** A responsive mobile browser dashboard shows current detections, persistent per-detection counts, risk totals, and recent events. The phone page is read-only and works on the same trusted Wi-Fi as the PC.
 - **Simulations:** demo speed, GPS coordinates, V2X recipients CAR_B/CAR_C/CAR_D, and emergency notification. They do not connect to GPS, OBD-II, physical V2X, or emergency services.
 
 ## Architecture
@@ -15,25 +15,23 @@ DriveSafe AI is a university prototype for driver-safety monitoring. It combines
 - `real_camera_integration.py` — primary real-camera app. It uses `phone_module.py`, `eye_closure.py`, `distraction_detector.py`, and `safety_manager.py`.
 - `event_logger.py` — SQLite initialization, event transitions, event queries, and summary counts.
 - `simulated_gps.py`, `v2x_simulator.py`, `emergency_service.py` — deterministic software simulations.
-- `api_test.py` — existing Flask app extended with the prototype API. The camera app starts it on `127.0.0.1:5000` while monitoring.
+- `api_test.py` serves the phone dashboard and prototype API; `templates/dashboard.html` is the responsive live display.
 - `dashboard.py` — existing Tkinter dashboard, now refreshes event counts, event history, and API status.
 - `driving_system.py`, `driving_controller.py`, `mode_manager.py`, `speed_input.py`, `speed_manager.py`, and `vehicle_state.py` — existing speed and mode architecture, using demo speed only.
 - `integrated_demo.py`, `main.py`, `accident_detector.py`, and other demos remain separate utilities. The primary camera app does not run their separate camera loops.
 
 ## Requirements and setup (Windows)
 
-The `.replit` configuration targets Python 3.12. On this Windows machine, Python 3.13.9 is available; create a project-local environment so the system Anaconda installation is left alone:
+The `.replit` configuration targets Python 3.12, which was unavailable on the test PC. Python 3.11.9 successfully installed and ran the camera application. For a clean project-local setup in Command Prompt, use:
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```cmd
+py -3.11 -m venv .venv
+.venv\Scripts\activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt` lists only the direct runtime packages for the camera app, API, and optional alarm; use it inside the isolated environment rather than installing globally. The repository also includes a Windows MediaPipe wheel (`mediapipe-1.0.0-py3-none-win_amd64.whl`), but the standard setup resolves MediaPipe from the configured package index. The YOLO detector uses `yolo11n.pt`; the face detector uses `models/face_landmarker.task`. Do not substitute or fabricate model files. If installation fails, check the specific package error and Python version instead of installing packages globally.
-
-The pygame alarm uses `sounds/alert.wav` when present. If that optional file or audio device is unavailable, alerts are printed and monitoring continues silently.
+`requirements.txt` lists the direct runtime packages for the camera app, API, and alarm. The YOLO detector uses `yolo11n.pt`; the face detector uses `models/face_landmarker.task`. Use the isolated environment so project dependencies stay separate from other Python applications.
 
 ## Run
 
@@ -43,7 +41,16 @@ Start the primary camera application:
 python real_camera_integration.py
 ```
 
-The app opens the real webcam, performs AI monitoring, and starts the local Flask API. Press **E** to run a clearly labeled emergency-workflow demonstration, **N** to return to normal mode, and **Q** to quit. Emergency mode leaves camera monitoring active and overrides the existing simulated speed restriction.
+The app opens the real webcam, performs AI monitoring, and serves the dashboard on this PC at `http://127.0.0.1:5000/`. Press **E** to run a clearly labeled emergency-workflow demonstration, **N** to return to normal mode, and **Q** to quit. Emergency mode leaves camera monitoring active and overrides the existing simulated speed restriction.
+
+For phone access on the same trusted Wi-Fi, start in Command Prompt with:
+
+```cmd
+set DRIVESAFE_LAN=1
+python real_camera_integration.py
+```
+
+The app prints the phone URL if it can identify the PC's Wi-Fi address. Otherwise run `ipconfig` on the PC and open `http://<PC-IPv4>:5000/` on the phone, for example `http://192.168.1.24:5000/`. If Windows Firewall asks, allow Python on **Private networks only**. Do not configure router port forwarding or expose this prototype to the public internet. The phone dashboard is read-only; emergency demo controls remain on the PC.
 
 Start the dashboard in another terminal while the camera app is running:
 
@@ -61,10 +68,11 @@ Do not start this separate API command while the camera app already owns port 50
 
 ## API
 
-- `GET /api/status` — camera/runtime state, current detections, safety level, and database event counts.
-- `GET /api/events?limit=100` — latest real logged events and summary counts.
+- `GET /` — phone-friendly dashboard, refreshed every two seconds.
+- `GET /api/status` — camera/runtime state, current detections, safety level, risk totals, and saved per-detection totals.
+- `GET /api/events?limit=100` — latest detection transitions and per-type summary counts.
 - `GET /api/vehicle` — simulated speed, vehicle state, mode, and simulated GPS.
-- `POST /api/emergency` — explicitly starts an emergency demonstration and returns simulated GPS, V2X delivery, and notification status. It never contacts emergency services.
+- `POST /api/emergency` — explicitly starts an emergency demonstration and returns simulated GPS, V2X delivery, and notification status. It never contacts emergency services; this control accepts requests from the PC only.
 - `GET /api/v2x` — most recent software-simulation delivery.
 
 Example emergency demo request:

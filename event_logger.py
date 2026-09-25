@@ -92,3 +92,14 @@ def show_events():
 if __name__ == "__main__":
     print("Database initialized:", initialize_database())
     show_events()
+
+
+def get_event_counts_by_type():
+    """Return persistent detection totals by type, counting event transitions."""
+    initialize_database()
+    with _connect() as connection:
+        rows = connection.execute(
+            "SELECT event_type, COUNT(*) AS count FROM safety_events "
+            "GROUP BY event_type ORDER BY event_type"
+        ).fetchall()
+    return {str(row["event_type"]): int(row["count"]) for row in rows}

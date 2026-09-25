@@ -1,9 +1,9 @@
-"""DriveSafe local prototype API. All emergency and V2X actions are simulated."""
+"""DriveSafe local dashboard/API. Emergency and V2X actions are simulations."""
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 
 from emergency_service import EmergencyService
-from event_logger import get_events, get_summary, log_event
+from event_logger import get_event_counts_by_type, get_events, get_summary, log_event
 import runtime_state
 
 app = Flask(__name__)
@@ -11,36 +11,52 @@ app = Flask(__name__)
 
 @app.get("/")
 def home():
-    return "DriveSafe AI API. See /api/status, /api/events, /api/vehicle, /api/v2x."
+    return render_template("dashboard.html")
 
 
 @app.get("/api/status")
 def api_status():
     state = runtime_state.snapshot()
-    return jsonify({"system": "DriveSafe AI", "status": "Running",
-                    "camera": state["camera"], "driver_status": state["driver_status"],
-                    "detections": state["detections"], "safety_level": state["safety_level"],
-                    "mode": state["mode"], "event_counts": get_summary(),
-                    "speed_source": "SIMULATED GPS"})
+    return jsonify({
+        "system": "DriveSafe AI", "status": "Running",
+        "camera": state["camera"], "driver_status": state["driver_status"],
+        "detections": state["detections"],
+        "safety_level": state["safety_level"],
+        "safety_status": state.get("safety_status", "NORMAL"),
+        "mode": state["mode"], "event_counts": get_summary(),
+        "detection_counts": get_event_counts_by_type(),
+        "speed": state.get("speed", 0.0),
+        "speed_source": "SIMULATED GPS", "gps": state.get("gps"),
+        "v2x_status": "IDLE" if state.get("v2x") is None else "SENT",
+    })
 
 
 @app.get("/api/events")
 def api_events():
     limit = request.args.get("limit", default=100, type=int)
-    return jsonify({"summary": get_summary(), "events": get_events(max(1, min(limit, 500)))})
+    return jsonify({
+        "summary": get_summary(),
+        "counts_by_type": get_event_counts_by_type(),
+        "events": get_events(max(1, min(limit, 500))),
+    })
 
 
 @app.get("/api/vehicle")
 def api_vehicle():
     state = runtime_state.snapshot()
-    return jsonify({"vehicle_state": state["vehicle_state"], "speed": state["speed"],
+    return jsonify({"vehicle_state": state["vehicle_state"],
+                    "speed": state.get("speed", 0.0),
                     "speed_source": "SIMULATED GPS", "mode": state["mode"],
                     "speed_rule": state.get("speed_rule", "NO SPEED DATA"),
-                    "ai_monitoring": True, "gps": state["gps"]})
+                    "ai_monitoring": state["camera"] == "ACTIVE",
+                    "gps": state["gps"]})
 
 
 @app.post("/api/emergency")
 def api_emergency():
+    # The phone dashboard is read-only; trigger the demo at the PC keyboard.
+    if request.remote_addr not in {"127.0.0.1", "::1"}:
+        return jsonify({"error": "Run the emergency demonstration at the PC."}), 403
     payload = request.get_json(silent=True) or {}
     event_type = str(payload.get("event_type", "EMERGENCY_DEMO"))[:80]
     state = runtime_state.snapshot()
@@ -55,6 +71,11 @@ def api_emergency():
     runtime_state.update(mode="EMERGENCY", safety_level=3,
                          safety_status="EMERGENCY", v2x=notification["v2x"],
                          emergency=notification, last_event=event)
+    try:
+        from alert_manager import trigger_alert
+        trigger_alert("EMERGENCY MODE - simulated notification and V2X sent", level=3)
+    except Exception as exc:
+        app.logger.warning("Could not play emergency alert: %s", exc)
     return jsonify(notification), 202
 
 

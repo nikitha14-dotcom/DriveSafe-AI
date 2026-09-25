@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import event_logger
 from api_test import app
@@ -98,6 +99,32 @@ class CoreServiceTests(unittest.TestCase):
             "total_events": 3, "warnings": 1, "high_risk": 1, "emergencies": 1,
         })
         self.assertEqual(event_logger.get_events()[0]["event_type"], "EMERGENCY_DEMO")
+        self.assertEqual(event_logger.get_event_counts_by_type(), {
+            "DROWSINESS": 1, "EMERGENCY_DEMO": 1, "PHONE_DETECTED": 1,
+        })
+
+    def test_mobile_dashboard_and_live_detection_counts(self):
+        event_logger.log_event("PHONE_DETECTED", 1, "phone transition")
+        event_logger.log_event("YAWNING", 1, "yawn transition")
+        client = app.test_client()
+        page = client.get("/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Recorded detection counts", page.data)
+        self.assertIn(b"Recent safety events", page.data)
+        status = client.get("/api/status").get_json()
+        self.assertEqual(status["detection_counts"]["PHONE_DETECTED"], 1)
+        history = client.get("/api/events").get_json()
+        self.assertEqual(history["counts_by_type"]["YAWNING"], 1)
+
+    def test_alarm_tone_patterns_differ_by_safety_level(self):
+        from alert_manager import _tone_pcm
+        warning = _tone_pcm(1)
+        high_risk = _tone_pcm(2)
+        emergency = _tone_pcm(3)
+        self.assertGreater(len(warning), 0)
+        self.assertGreater(len(high_risk), len(warning))
+        self.assertGreater(len(emergency), len(high_risk))
+        self.assertEqual(len({warning, high_risk, emergency}), 3)
 
     def test_api_status_events_emergency_and_v2x(self):
         client = app.test_client()
@@ -105,14 +132,20 @@ class CoreServiceTests(unittest.TestCase):
         self.assertEqual(client.get("/api/events").get_json()["summary"]["total_events"], 0)
         vehicle = client.get("/api/vehicle").get_json()
         self.assertEqual(vehicle["speed_source"], "SIMULATED GPS")
-        self.assertTrue(vehicle["ai_monitoring"])
-        response = client.post("/api/emergency", json={"event_type": "EMERGENCY_DEMO"})
+        self.assertFalse(vehicle["ai_monitoring"])
+        with patch("alert_manager.trigger_alert") as alarm:
+            response = client.post("/api/emergency", json={"event_type": "EMERGENCY_DEMO"})
+            alarm.assert_called_once()
         self.assertEqual(response.status_code, 202)
         self.assertTrue(response.get_json()["v2x"]["message"]["simulation"])
         repeated = client.post("/api/emergency", json={"event_type": "EMERGENCY_DEMO"})
         self.assertEqual(repeated.status_code, 200)
         self.assertEqual(client.get("/api/events").get_json()["summary"]["emergencies"], 1)
         self.assertEqual(client.get("/api/v2x").get_json()["status"], "SENT")
+        remote_client = app.test_client()
+        response = remote_client.post("/api/emergency", json={"event_type": "EMERGENCY_DEMO"},
+                                      environ_overrides={"REMOTE_ADDR": "192.168.1.25"})
+        self.assertEqual(response.status_code, 403)
 
 
 if __name__ == "__main__":

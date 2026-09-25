@@ -15,6 +15,7 @@ _state = {
     "safety_level": 0,
     "detections": {"phone": False, "drowsiness": False, "yawning": False,
                    "distraction": False, "accident": False},
+    "accident_detection": "NOT_INTEGRATED",
     "gps": None,
     "v2x": None,
 }

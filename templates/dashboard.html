@@ -30,9 +30,13 @@
       <div><small>Camera</small><b id="camera">Connecting…</b></div>
       <div><small>Driver</small><b id="driver">—</b></div>
       <div><small>Mode</small><b id="mode">—</b></div>
+      <div><small>Vehicle state</small><b id="vehicle-state">—</b></div>
+      <div><small>AI monitoring</small><b id="ai-monitoring">—</b></div>
+      <div><small>Driving alerts</small><b id="driving-alerts">—</b></div>
       <div><small>Phone</small><b id="phone">—</b></div>
       <div><small>Drowsiness</small><b id="drowsiness">—</b></div>
       <div><small>Yawning / distraction</small><b id="other">—</b></div>
+      <div><small>Accident detection</small><b id="accident">—</b></div>
       <div><small>Speed (simulated)</small><b id="speed">—</b></div>
       <div><small>GPS (simulated)</small><b id="gps">—</b></div>
       <div><small>V2X demo</small><b id="v2x">—</b></div>
@@ -72,6 +76,10 @@
       byId('camera').textContent = status.camera || 'UNKNOWN';
       byId('driver').textContent = status.driver_status || '—';
       byId('mode').textContent = status.mode || '—';
+      byId('vehicle-state').textContent = status.vehicle_state || '—';
+      byId('ai-monitoring').textContent = status.ai_monitoring ? 'ACTIVE' : 'PAUSED';
+      byId('driving-alerts').textContent = status.driving_alerts_enabled ? 'ENABLED' : 'PAUSED';
+      byId('accident').textContent = status.accident_detection || 'NOT INTEGRATED';
       byId('phone').textContent = flag(d.phone);
       byId('drowsiness').textContent = flag(d.drowsiness);
       byId('other').textContent = `${d.yawning ? 'Yawn' : 'No yawn'} / ${d.distraction ? 'Distracted' : 'Clear'}`;

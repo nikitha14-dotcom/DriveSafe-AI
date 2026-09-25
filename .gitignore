@@ -3,3 +3,8 @@ __pycache__/
 *.py[cod]
 database/*.db
 runs/
+android-app/.gradle/
+android-app/.android/
+android-app/app/build/
+android-app/local.properties
+*.apk

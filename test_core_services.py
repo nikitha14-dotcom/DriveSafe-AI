@@ -73,6 +73,12 @@ class CoreServiceTests(unittest.TestCase):
     def test_existing_driving_integration_uses_safety_priority(self):
         system = AIDrivingIntegration()
         system.update_ai(phone=True, drowsiness=True, distraction=True)
+        parked = system.process(0)
+        self.assertEqual(parked["vehicle_state"], "STOPPED")
+        self.assertTrue(parked["ai_monitoring"])
+        self.assertFalse(parked["driving_alerts_enabled"])
+        self.assertEqual(parked["detections"], [])
+        self.assertEqual(parked["alert_level"], 0)
         result = system.process(50)
         self.assertEqual(result["alert_level"], 2)
         self.assertIn("DISTRACTION", result["detections"])
@@ -82,6 +88,18 @@ class CoreServiceTests(unittest.TestCase):
         self.assertEqual(result["alert_level"], 3)
         self.assertEqual(result["speed_rule"], "SPEED OVERRIDE")
         self.assertTrue(result["ai_monitoring"])
+        self.assertTrue(result["driving_alerts_enabled"])
+
+    def test_emergency_keeps_ai_monitoring_active_while_stopped(self):
+        system = AIDrivingIntegration()
+        system.driving_system.emergency_mode()
+        system.update_ai(phone=True)
+        result = system.process(0)
+        self.assertEqual(result["vehicle_state"], "STOPPED")
+        self.assertTrue(result["ai_monitoring"])
+        self.assertTrue(result["driving_alerts_enabled"])
+        self.assertIn("PHONE", result["detections"])
+        self.assertEqual(result["alert_level"], 3)
 
     def test_simulated_emergency_and_v2x_fanout(self):
         result = EmergencyService().trigger("EMERGENCY_DEMO", speed=0, heading=45)
@@ -133,6 +151,11 @@ class CoreServiceTests(unittest.TestCase):
         vehicle = client.get("/api/vehicle").get_json()
         self.assertEqual(vehicle["speed_source"], "SIMULATED GPS")
         self.assertFalse(vehicle["ai_monitoring"])
+        self.assertFalse(vehicle["driving_alerts_enabled"])
+        self.assertEqual(vehicle["accident_detection"], "NOT_INTEGRATED")
+        status = client.get("/api/status").get_json()
+        self.assertIn("vehicle_state", status)
+        self.assertIn("driving_alerts_enabled", status)
         with patch("alert_manager.trigger_alert") as alarm:
             response = client.post("/api/emergency", json={"event_type": "EMERGENCY_DEMO"})
             alarm.assert_called_once()

@@ -32,7 +32,8 @@ class DrivingController:
             "speed_status": speed_status,
             "mode": mode,
             "speed_rule": speed_rule,
-            "ai_monitoring": self.mode.ai_monitoring_active()
+            "ai_monitoring": self.mode.ai_monitoring_active(),
+            "driving_alerts_enabled": self.mode.driving_alerts_enabled(vehicle_state)
         }
 
     def activate_emergency(self):

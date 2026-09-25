@@ -61,9 +61,12 @@ class ModeManager:
     # --------------------------------------------------------
 
     def ai_monitoring_active(self):
-
-        # AI monitoring remains active in BOTH modes
+        """Camera AI remains available in normal and emergency operation."""
         return True
+
+    def driving_alerts_enabled(self, vehicle_state=None):
+        """Suppress driving-behavior warnings while stopped or without speed."""
+        return self.emergency_mode or vehicle_state == "DRIVING"
 
 
 # ============================================================

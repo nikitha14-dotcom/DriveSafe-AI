@@ -1,6 +1,6 @@
 # DriveSafe AI for Android
 
-This Android app opens the DriveSafe dashboard in an installable app window. The PC still runs the camera and AI detector; both devices must be on the same Wi-Fi network, and the PC app must be running.
+This Android app opens the DriveSafe dashboard in an installable app window. The PC still runs the camera and AI detector; both devices must be on the same Wi-Fi network, and the PC app must be running. The APK has not been built or device-tested yet.
 
 ## Install
 

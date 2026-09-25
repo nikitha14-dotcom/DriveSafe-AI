@@ -4,10 +4,10 @@ DriveSafe AI is a university prototype for driver-safety monitoring. It combines
 
 ## Features
 
-- **Real camera AI:** YOLO phone detection (COCO class 67, confidence 0.70, two consecutive frames), MediaPipe eye-closure monitoring, sustained yawning detection, and sustained left/right/down head-direction distraction detection.
+- **Real camera AI:** YOLO phone detection (COCO class 67, confidence 0.70, two consecutive frames), MediaPipe eye-closure monitoring, sustained yawning detection, and sustained left/right/down head-direction distraction detection. When demo speed is stopped or unavailable, detections remain visible but driving-behavior alerts and event logging pause. Press `1` or `2` to simulate driving.
 - **Risk levels:** emergency demonstration level 3, drowsiness level 2, and phone/distraction/yawning level 1. Accident detection is not integrated in the camera app. Level-specific alarms and event records occur when a detection starts, not once per frame.
 - **Events:** SQLite event history at `database/drivesafe_events.db`. `DRIVESAFE_DB_PATH` can point to a different database file.
-- **Dashboard and API:** A responsive mobile browser dashboard shows current detections, persistent per-detection counts, risk totals, and recent events. The phone page is read-only and works on the same trusted Wi-Fi as the PC.
+- **Dashboard, API, and Android client:** A responsive browser dashboard and an Android WebView client show current detections, vehicle state, monitoring state, persistent per-detection counts, risk totals, and recent events. The Android project source is in `android-app/`; its APK must be built separately in Android Studio. Phone access is read-only and works on the same trusted Wi-Fi as the PC.
 - **Simulations:** demo speed, GPS coordinates, V2X recipients CAR_B/CAR_C/CAR_D, and emergency notification. They do not connect to GPS, OBD-II, physical V2X, or emergency services.
 
 ## Architecture
@@ -41,7 +41,7 @@ Start the primary camera application:
 python real_camera_integration.py
 ```
 
-The app opens the real webcam, performs AI monitoring, and serves the dashboard on this PC at `http://127.0.0.1:5000/`. Press **E** to run a clearly labeled emergency-workflow demonstration, **N** to return to normal mode, and **Q** to quit. Emergency mode leaves camera monitoring active and overrides the existing simulated speed restriction.
+The app opens one real webcam, performs driver monitoring, and serves the dashboard on this PC at `http://127.0.0.1:5000/`. The speed is a demonstration value: press **0** to stop, **1** to simulate 50 km/h, and **2** to simulate 80 km/h. Driving-behavior warnings are enabled only in simulated driving or emergency mode. Press **E** for the labeled emergency-workflow demonstration, **N** to return to normal mode, and **Q** to quit. Emergency mode leaves AI monitoring active and overrides the simulated speed restriction.
 
 For phone access on the same trusted Wi-Fi, start in Command Prompt with:
 
@@ -83,7 +83,7 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:5000/api/emergency -Content
 
 ## Testing
 
-Run the hardware-free core tests:
+Run the hardware-free core tests (they use temporary database files and synthetic inputs):
 
 ```powershell
 python -m unittest -v test_core_services
@@ -109,7 +109,7 @@ The manual camera checks below need the runtime packages, camera, model files, a
 ## Limitations and future scope
 
 - Distraction measures approximate head direction from face landmarks. Lighting, camera placement, face pose, calibration, and individual differences affect accuracy; it is a prototype signal, not proof of intent or phone use.
-- **Accident detection is not integrated into the primary camera app.** The existing `accident_detector.py` is a separate motion-threshold demo; abrupt image motion is not reliable evidence of a vehicle accident. Emergency workflow is triggered manually or through the API and is labeled a simulation.
+- **Accident detection is not implemented in the primary camera app.** The existing `accident_detector.py` is a separate motion-threshold prototype; abrupt image motion is not reliable evidence of a vehicle accident. Emergency workflow is triggered manually or through the API and is labeled a simulation.
 - Road/object tools are separate scripts and are not run by the primary driver camera.
-- GPS coordinates, heading, speed, V2X messages, and notifications are simulated. There is no real GPS, OBD-II, physical V2X radio, emergency-service call, native mobile app, or production cloud deployment.
+- GPS coordinates, heading, and speed are simulated; there is no real GPS or OBD-II interface. V2X and emergency notifications are software simulations, not hardware or real service calls. The Android source wraps the PC dashboard; it does not run AI on the phone. The Android APK and phone connection still need to be built and verified on the target devices. There is no production cloud deployment.
 - Camera behavior must be validated on the target PC. This software is an academic prototype, not a safety-certified driver-assistance system.

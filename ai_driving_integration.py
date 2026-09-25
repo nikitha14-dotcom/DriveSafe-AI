@@ -53,6 +53,8 @@ class AIDrivingIntegration:
         # ----------------------------------------------------
 
         ai_monitoring = driving_result["ai_monitoring"]
+        alerts_enabled = driving_result["driving_alerts_enabled"]
+        emergency_active = driving_result["mode"] == "EMERGENCY"
 
         # ----------------------------------------------------
         # DETECTION STATUS
@@ -60,7 +62,7 @@ class AIDrivingIntegration:
 
         detections = []
 
-        if ai_monitoring:
+        if alerts_enabled:
 
             if self.phone_detected:
                 detections.append("PHONE")
@@ -85,13 +87,15 @@ class AIDrivingIntegration:
         # ----------------------------------------------------
 
         alert_level, alert_status = get_safety_level(
-            phone_detected=self.phone_detected,
-            drowsiness_detected=self.drowsiness_detected,
-            seatbelt_missing=self.seatbelt_missing,
-            yawning_detected=self.yawning_detected,
-            distraction_detected=self.distraction_detected,
+            phone_detected=self.phone_detected and alerts_enabled,
+            drowsiness_detected=self.drowsiness_detected and alerts_enabled,
+            seatbelt_missing=self.seatbelt_missing and alerts_enabled,
+            yawning_detected=self.yawning_detected and alerts_enabled,
+            distraction_detected=self.distraction_detected and alerts_enabled,
             accident_detected=self.accident_detected,
         )
+        if emergency_active and not self.accident_detected:
+            alert_level, alert_status = 3, "EMERGENCY MODE"
 
         # ----------------------------------------------------
         # FINAL RESULT

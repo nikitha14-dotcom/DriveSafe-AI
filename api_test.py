@@ -21,6 +21,11 @@ def api_status():
         "system": "DriveSafe AI", "status": "Running",
         "camera": state["camera"], "driver_status": state["driver_status"],
         "detections": state["detections"],
+        "accident_detection": "NOT_INTEGRATED",
+        "vehicle_state": state["vehicle_state"],
+        "ai_monitoring": state["camera"] == "ACTIVE",
+        "driving_alerts_enabled": (state["camera"] == "ACTIVE" and
+                                   (state["vehicle_state"] == "DRIVING" or state["mode"] == "EMERGENCY")),
         "safety_level": state["safety_level"],
         "safety_status": state.get("safety_status", "NORMAL"),
         "mode": state["mode"], "event_counts": get_summary(),
@@ -49,6 +54,9 @@ def api_vehicle():
                     "speed_source": "SIMULATED GPS", "mode": state["mode"],
                     "speed_rule": state.get("speed_rule", "NO SPEED DATA"),
                     "ai_monitoring": state["camera"] == "ACTIVE",
+                    "driving_alerts_enabled": (state["camera"] == "ACTIVE" and
+                                               (state["vehicle_state"] == "DRIVING" or state["mode"] == "EMERGENCY")),
+                    "accident_detection": "NOT_INTEGRATED",
                     "gps": state["gps"]})
 
 

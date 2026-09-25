@@ -94,7 +94,7 @@ def run_camera(camera_id=0):
     timestamp_ms = -1
     emergency_mode = False
     current_speed = 0.0  # Demonstration value; no vehicle interface is connected.
-    print("DriveSafe AI camera monitoring started. Speed/GPS are simulated; press E for emergency demo, Q to quit.")
+    print("DriveSafe AI camera monitoring started. Speed/GPS are simulated; press 1/2 for demo speed, 0 to stop, E for emergency demo, Q to quit.")
     runtime_state.update(camera="ACTIVE", driver_status="DRIVER SAFE", mode="NORMAL",
                          speed=current_speed, speed_source="SIMULATED GPS", gps=gps.snapshot(),
                          safety_level=0, safety_status="NORMAL",
@@ -178,6 +178,8 @@ def run_camera(camera_id=0):
             driving_state = driving_system.update(current_speed)
             if emergency_mode:
                 level, level_name = 3, "EMERGENCY MODE"
+            elif not driving_state["driving_alerts_enabled"]:
+                level, level_name = 0, "NOT DRIVING"
             driver_status = (
                 "DROWSINESS DETECTED" if drowsy else
                 "PHONE DETECTED" if phone else
@@ -192,15 +194,17 @@ def run_camera(camera_id=0):
                 "YAWNING": (yawning, 1),
                 "DISTRACTION_DETECTED": (distraction, 1),
             }
+            alerts_enabled = driving_state["driving_alerts_enabled"] or emergency_mode
             new_alerts = []
             for event_type, (is_active, event_level) in event_values.items():
-                if is_active and not active[event_type]:
+                alert_active = is_active and alerts_enabled
+                if alert_active and not active[event_type]:
                     details = f"{event_type.replace('_', ' ').title()} detected by real camera AI."
                     if event_type == "DISTRACTION_DETECTED":
                         details += f" Sustained head direction: {direction}. This does not establish phone use."
                     log_event(event_type, event_level, details)
                     new_alerts.append((event_level, details))
-                active[event_type] = is_active
+                active[event_type] = alert_active
             if new_alerts:
                 alert_level = max(level for level, _ in new_alerts)
                 trigger_alert(" | ".join(message for _, message in new_alerts), level=alert_level)
@@ -209,6 +213,7 @@ def run_camera(camera_id=0):
             runtime_state.update(
                 camera="ACTIVE", driver_status=driver_status,
                 vehicle_state=driving_state["vehicle_state"],
+                speed=current_speed, speed_source="SIMULATED GPS",
                 speed_rule=driving_state["speed_rule"],
                 safety_level=level, safety_status=level_name,
                 detections=detections, gps=location,
@@ -228,7 +233,7 @@ def run_camera(camera_id=0):
                      f"Speed: {current_speed:.0f} km/h (DEMO SPEED)",
                      f"Speed rule: {driving_state['speed_rule']}",
                      f"GPS: {location['latitude']:.5f}, {location['longitude']:.5f} (SIMULATED)",
-                     f"Mode: {'EMERGENCY' if emergency_mode else 'NORMAL'} | E: emergency demo | Q: quit"]
+                     f"Mode: {'EMERGENCY' if emergency_mode else 'NORMAL'} | 0 stop, 1 drive, 2 fast | E: emergency | Q: quit"]
             for row, line in enumerate(lines):
                 cv2.putText(frame, line, (18, 28 + row * 29), cv2.FONT_HERSHEY_SIMPLEX,
                             0.56, color if row in (1, 2) else (245, 245, 245), 2)
@@ -236,8 +241,18 @@ def run_camera(camera_id=0):
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), ord("Q")):
                 break
+            if key == ord("0"):
+                current_speed = 0.0
+                print("Simulated vehicle stopped; behavior alerts paused.")
+            if key == ord("1"):
+                current_speed = 50.0
+                print("Simulated driving speed set to 50 km/h; AI behavior monitoring active.")
+            if key == ord("2"):
+                current_speed = 80.0
+                print("Simulated driving speed set to 80 km/h; AI behavior monitoring active.")
             if key in (ord("e"), ord("E")) and not emergency_mode:
                 emergency_mode = True
+                driving_system.emergency_mode()
                 notification = emergency_service.trigger("EMERGENCY_DEMO", speed=current_speed)
                 event = log_event("EMERGENCY_DEMO", 3,
                                   "Manual emergency workflow demonstration; not a camera accident detection. "

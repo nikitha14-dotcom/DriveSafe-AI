@@ -3,10 +3,14 @@
 from array import array
 import math
 import sys
+import time
+from threading import Thread
 
 _pygame = None
 _audio_backend = None
 _sounds = {}
+_last_alert_at = 0.0
+_last_alert_level = 0
 
 try:
     import pygame as _pygame
@@ -61,7 +65,17 @@ def play_alarm(level=1):
             print("Alarm playback failed:", exc)
     elif _audio_backend == "winsound":
         try:
-            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            patterns = {
+                1: ((740, 130), (740, 130)),
+                2: ((880, 160), (880, 160), (880, 160)),
+                3: ((1046, 130), (1046, 130), (1046, 130), (1046, 130), (1046, 130)),
+            }
+            def play_pattern():
+                for index, (frequency, duration_ms) in enumerate(patterns[level]):
+                    winsound.Beep(frequency, duration_ms)
+                    if index < len(patterns[level]) - 1:
+                        time.sleep(0.06)
+            Thread(target=play_pattern, daemon=True).start()
             return True
         except Exception as exc:
             print("System alert sound failed:", exc)
@@ -72,8 +86,15 @@ def play_alarm(level=1):
 
 def trigger_alert(message, cooldown=1.0, level=1):
     """Call once for each new detection transition or safety-level escalation."""
+    global _last_alert_at, _last_alert_level
     level = max(1, min(3, int(level)))
     print(f"[SAFETY LEVEL {level}] {message}")
+    now = time.monotonic()
+    if (now - _last_alert_at < max(0.0, float(cooldown)) and
+            level <= _last_alert_level):
+        return False
+    _last_alert_at = now
+    _last_alert_level = level
     return play_alarm(level)
 
 

@@ -1,143 +1,36 @@
-import cv2
-from phone_ai import detect_phone
+"""Interactive real-camera smoke check for the existing PhoneDetector."""
 
-cap = cv2.VideoCapture(0)
 
-if not cap.isOpened():
-    print("Camera could not be opened.")
-    exit()
+def main():
+    import cv2
+    from phone_module import PhoneDetector
 
-print("DriveSafe AI - Real Phone Detection")
-print("Hold a phone in front of the camera.")
-print("Press Q to quit.")
+    detector = PhoneDetector()
+    camera = cv2.VideoCapture(0)
+    if not camera.isOpened():
+        raise SystemExit("Camera could not be opened.")
+    print("Phone detector smoke check: show a phone; press Q to quit.")
+    try:
+        while True:
+            ok, frame = camera.read()
+            if not ok:
+                break
+            frame = cv2.flip(frame, 1)
+            result = detector.detect(frame)
+            for x1, y1, x2, y2, confidence in result["boxes"]:
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, f"PHONE {confidence:.2f}", (x1, max(20, y1 - 8)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            status = "PHONE DETECTED" if result["detected"] else "NO PHONE DETECTED"
+            cv2.putText(frame, status, (20, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
+                        (0, 0, 255) if result["detected"] else (0, 255, 0), 2)
+            cv2.imshow("DriveSafe AI - Phone Detector Smoke Check", frame)
+            if cv2.waitKey(1) & 0xFF in (ord("q"), ord("Q")):
+                break
+    finally:
+        camera.release()
+        cv2.destroyAllWindows()
 
-while True:
 
-    ret, frame = cap.read()
-
-    if not ret:
-        break
-
-    frame = cv2.flip(frame, 1)
-
-    detected, confidence = detect_phone(frame)
-
-    if detected:
-
-        cv2.putText(
-            frame,
-            "PHONE DETECTED",
-            (20, 45),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1.0,
-            (0, 0, 255),
-            3
-        )
-
-        cv2.putText(
-            frame,
-            f"Confidence: {confidence:.2f}",
-            (20, 85),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 0, 255),
-            2
-        )
-
-    else:
-
-        cv2.putText(
-            frame,
-            "NO PHONE",
-            (20, 45),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1.0,
-            (0, 255, 0),
-            2
-        )
-
-    cv2.imshow(
-        "DriveSafe AI - Real Phone Detection",
-        frame
-    )
-
-    key = cv2.waitKey(1) & 0xFF
-
-    if key == ord("q"):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
-
-print("Phone detection test completed.")import cv2
-from phone_ai import detect_phone
-
-cap = cv2.VideoCapture(0)
-
-if not cap.isOpened():
-    print("Camera could not be opened.")
-    exit()
-
-print("DriveSafe AI - Real Phone Detection")
-print("Hold a phone in front of the camera.")
-print("Press Q to quit.")
-
-while True:
-
-    ret, frame = cap.read()
-
-    if not ret:
-        break
-
-    frame = cv2.flip(frame, 1)
-
-    detected, confidence = detect_phone(frame)
-
-    if detected:
-
-        cv2.putText(
-            frame,
-            "PHONE DETECTED",
-            (20, 45),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1.0,
-            (0, 0, 255),
-            3
-        )
-
-        cv2.putText(
-            frame,
-            f"Confidence: {confidence:.2f}",
-            (20, 85),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 0, 255),
-            2
-        )
-
-    else:
-
-        cv2.putText(
-            frame,
-            "NO PHONE",
-            (20, 45),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1.0,
-            (0, 255, 0),
-            2
-        )
-
-    cv2.imshow(
-        "DriveSafe AI - Real Phone Detection",
-        frame
-    )
-
-    key = cv2.waitKey(1) & 0xFF
-
-    if key == ord("q"):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
-
-print("Phone detection test completed.")
+if __name__ == "__main__":
+    main()

@@ -1,158 +1,94 @@
+"""SQLite event storage shared by the camera app, API and dashboard."""
+
+import os
 import sqlite3
-from datetime import datetime
-
-# ============================================================
-# DriveSafe AI - Event Logger
-# ============================================================
-
-DATABASE = "database/drivesafe_events.db"
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 
 
-# ============================================================
-# CREATE DATABASE
-# ============================================================
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATABASE = Path(os.environ.get(
+    "DRIVESAFE_DB_PATH", PROJECT_ROOT / "database" / "drivesafe_events.db"
+))
+
+
+@contextmanager
+def _connect():
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(str(DATABASE), timeout=5)
+    connection.row_factory = sqlite3.Row
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
 
 def initialize_database():
+    with _connect() as connection:
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS safety_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                safety_level INTEGER NOT NULL,
+                message TEXT,
+                timestamp TEXT NOT NULL
+            )
+        """)
+    return str(DATABASE)
 
-    connection = sqlite3.connect(DATABASE)
 
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS safety_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_type TEXT NOT NULL,
-            safety_level INTEGER NOT NULL,
-            message TEXT,
-            timestamp TEXT NOT NULL
+def log_event(event_type, safety_level, message=""):
+    """Record one event transition; callers should only call on state changes."""
+    initialize_database()
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _connect() as connection:
+        cursor = connection.execute(
+            "INSERT INTO safety_events(event_type, safety_level, message, timestamp) "
+            "VALUES (?, ?, ?, ?)",
+            (str(event_type), int(safety_level), str(message), timestamp),
         )
-    """)
-
-    connection.commit()
-    connection.close()
-
-
-# ============================================================
-# LOG EVENT
-# ============================================================
-
-def log_event(event_type, safety_level, message):
-
-    connection = sqlite3.connect(DATABASE)
-
-    cursor = connection.cursor()
-
-    timestamp = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-    cursor.execute("""
-        INSERT INTO safety_events
-        (event_type, safety_level, message, timestamp)
-        VALUES (?, ?, ?, ?)
-    """, (
-        event_type,
-        safety_level,
-        message,
-        timestamp
-    ))
-
-    connection.commit()
-    connection.close()
-
-    print(
-        f"[LOGGED] {event_type} | "
-        f"Level {safety_level} | "
-        f"{timestamp}"
-    )
+        event_id = cursor.lastrowid
+    return {"id": event_id, "event_type": str(event_type),
+            "safety_level": int(safety_level), "message": str(message),
+            "timestamp": timestamp}
 
 
-# ============================================================
-# DISPLAY EVENTS
-# ============================================================
+def get_events(limit=100):
+    initialize_database()
+    with _connect() as connection:
+        rows = connection.execute(
+            "SELECT id, event_type, safety_level, message, timestamp "
+            "FROM safety_events ORDER BY id DESC LIMIT ?", (int(limit),)
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_summary():
+    initialize_database()
+    with _connect() as connection:
+        rows = connection.execute(
+            "SELECT safety_level, COUNT(*) AS count FROM safety_events GROUP BY safety_level"
+        ).fetchall()
+        total = connection.execute("SELECT COUNT(*) FROM safety_events").fetchone()[0]
+    counts = {int(row["safety_level"]): int(row["count"]) for row in rows}
+    return {"total_events": int(total), "warnings": counts.get(1, 0),
+            "high_risk": counts.get(2, 0), "emergencies": counts.get(3, 0)}
+
 
 def show_events():
-
-    connection = sqlite3.connect(DATABASE)
-
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            event_type,
-            safety_level,
-            message,
-            timestamp
-        FROM safety_events
-        ORDER BY id DESC
-    """)
-
-    events = cursor.fetchall()
-
-    connection.close()
-
-    print("\n==============================================")
-    print("DriveSafe AI - Safety Event History")
-    print("==============================================")
-
+    events = get_events(limit=1000)
     if not events:
-
         print("No events recorded.")
+        return
+    for event in events:
+        print("{id} | {event_type} | Level {safety_level} | {message} | {timestamp}".format(**event))
 
-    else:
-
-        for event in events:
-
-            print(
-                f"ID: {event[0]} | "
-                f"Event: {event[1]} | "
-                f"Level: {event[2]} | "
-                f"{event[3]} | "
-                f"{event[4]}"
-            )
-
-    print("==============================================")
-
-
-# ============================================================
-# TEST
-# ============================================================
 
 if __name__ == "__main__":
-
-    print("==============================================")
-    print("DriveSafe AI - Event Logger")
-    print("==============================================")
-
-    initialize_database()
-
-    print("Database initialized successfully.")
-
-    log_event(
-        "PHONE_DETECTED",
-        1,
-        "Driver phone usage detected"
-    )
-
-    log_event(
-        "DROWSINESS",
-        2,
-        "Driver drowsiness detected"
-    )
-
-    log_event(
-        "SEATBELT_MISSING",
-        1,
-        "Driver seat belt was not detected"
-    )
-
-    log_event(
-        "ACCIDENT",
-        3,
-        "Emergency accident event detected"
-    )
-
+    print("Database initialized:", initialize_database())
     show_events()
-
-    print("\nEvent logging test completed successfully.")

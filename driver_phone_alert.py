@@ -1,12 +1,13 @@
 import cv2
 import time
+from pathlib import Path
 from ultralytics import YOLO
-from utils.alarm import play_alarm
+from alert_manager import play_alarm
 
 # -------------------------
 # Load YOLO Model
 # -------------------------
-model = YOLO("models/yolo11n.pt")
+model = YOLO(str(Path(__file__).resolve().parent / "yolo11n.pt"))
 
 # -------------------------
 # Start Webcam
@@ -31,10 +32,9 @@ while True:
     if not ret:
         break
 
-    results = model(frame, conf=0.30)
+    results = model(frame, conf=0.70, classes=[67])
 
     phone_detected = False
-    person_detected = False
 
     for r in results:
 
@@ -46,9 +46,6 @@ while True:
             x1, y1, x2, y2 = map(int, box.xyxy[0])
 
             color = (0, 255, 0)
-
-            if name == "person":
-                person_detected = True
 
             if name == "cell phone":
                 phone_detected = True
@@ -146,7 +143,7 @@ while True:
 
     cv2.putText(
         display,
-        f"Person : {person_detected}",
+        f"Phone : {phone_detected}",
         (x, 90),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
@@ -156,7 +153,7 @@ while True:
 
     cv2.putText(
         display,
-        f"Phone : {phone_detected}",
+        f"Phone Time : {duration:.1f}s",
         (x, 130),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
@@ -166,18 +163,8 @@ while True:
 
     cv2.putText(
         display,
-        f"Phone Time : {duration:.1f}s",
-        (x, 170),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (255, 255, 255),
-        2,
-    )
-
-    cv2.putText(
-        display,
         f"FPS : {fps}",
-        (x, 210),
+        (x, 170),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
         (0, 255, 0),
@@ -195,7 +182,7 @@ while True:
     cv2.putText(
         display,
         f"Risk : {risk_level}",
-        (x, 250),
+        (x, 210),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.8,
         color,
@@ -205,7 +192,7 @@ while True:
     cv2.putText(
         display,
         f"Status : {status}",
-        (x, 290),
+        (x, 250),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.65,
         (255, 255, 0),

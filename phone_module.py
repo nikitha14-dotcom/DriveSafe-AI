@@ -1,16 +1,23 @@
+from pathlib import Path
 import time
 from ultralytics import YOLO
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 class PhoneDetector:
     def __init__(
         self,
-        model_path="yolo11n.pt",
+        model_path=None,
         confidence=0.70,
         required_frames=2,
         image_size=320
     ):
-        self.model = YOLO(model_path)
+        self.model_path = Path(model_path) if model_path else PROJECT_ROOT / "yolo11n.pt"
+        if not self.model_path.is_absolute():
+            self.model_path = PROJECT_ROOT / self.model_path
+        self.model = YOLO(str(self.model_path))
         self.confidence = confidence
         self.required_frames = required_frames
         self.image_size = image_size

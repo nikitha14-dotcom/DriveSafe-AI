@@ -1,4 +1,4 @@
-from utils.alarm import play_alarm
+from alert_manager import play_alarm
 
 print("Playing alarm...")
 play_alarm()

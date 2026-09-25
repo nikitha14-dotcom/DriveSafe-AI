@@ -3,6 +3,7 @@
 # ============================================================
 
 from driving_system import DrivingSystem
+from safety_manager import get_safety_level
 
 
 class AIDrivingIntegration:
@@ -14,6 +15,8 @@ class AIDrivingIntegration:
         self.phone_detected = False
         self.drowsiness_detected = False
         self.yawning_detected = False
+        self.distraction_detected = False
+        self.seatbelt_missing = False
         self.accident_detected = False
 
     # --------------------------------------------------------
@@ -25,12 +28,16 @@ class AIDrivingIntegration:
         phone=False,
         drowsiness=False,
         yawning=False,
-        accident=False
+        accident=False,
+        distraction=False,
+        seatbelt_missing=False,
     ):
 
         self.phone_detected = phone
         self.drowsiness_detected = drowsiness
         self.yawning_detected = yawning
+        self.distraction_detected = distraction
+        self.seatbelt_missing = seatbelt_missing
         self.accident_detected = accident
 
     # --------------------------------------------------------
@@ -64,6 +71,12 @@ class AIDrivingIntegration:
             if self.yawning_detected:
                 detections.append("YAWNING")
 
+            if self.distraction_detected:
+                detections.append("DISTRACTION")
+
+            if self.seatbelt_missing:
+                detections.append("SEATBELT_MISSING")
+
             if self.accident_detected:
                 detections.append("ACCIDENT")
 
@@ -71,28 +84,14 @@ class AIDrivingIntegration:
         # ALERT LEVEL
         # ----------------------------------------------------
 
-        if self.accident_detected:
-
-            alert_level = 3
-            alert_status = "EMERGENCY"
-
-        elif self.drowsiness_detected:
-
-            alert_level = 2
-            alert_status = "HIGH RISK"
-
-        elif (
-            self.phone_detected
-            or self.yawning_detected
-        ):
-
-            alert_level = 1
-            alert_status = "WARNING"
-
-        else:
-
-            alert_level = 0
-            alert_status = "NORMAL"
+        alert_level, alert_status = get_safety_level(
+            phone_detected=self.phone_detected,
+            drowsiness_detected=self.drowsiness_detected,
+            seatbelt_missing=self.seatbelt_missing,
+            yawning_detected=self.yawning_detected,
+            distraction_detected=self.distraction_detected,
+            accident_detected=self.accident_detected,
+        )
 
         # ----------------------------------------------------
         # FINAL RESULT

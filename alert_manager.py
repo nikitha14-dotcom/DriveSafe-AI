@@ -1,46 +1,43 @@
-import pygame
-import time
+"""Transition-triggered pygame alarm with a silent fallback."""
 
-ALARM_PATH = "sounds/alert.wav"
+from pathlib import Path
 
-pygame.mixer.init()
+PROJECT_ROOT = Path(__file__).resolve().parent
+ALARM_PATH = PROJECT_ROOT / "sounds" / "alert.wav"
+
+_pygame = None
+_alarm_available = False
 
 try:
-    pygame.mixer.music.load(ALARM_PATH)
-    alarm_available = True
-    print("Alarm loaded successfully.")
-except Exception as e:
-    print("Alarm loading error:", e)
-    alarm_available = False
+    import pygame as _pygame
+    if ALARM_PATH.is_file():
+        _pygame.mixer.init()
+        _pygame.mixer.music.load(str(ALARM_PATH))
+        _alarm_available = True
+except Exception as exc:
+    print("Alarm audio unavailable:", exc)
 
 
-last_alert_time = 0
+def play_alarm():
+    if _alarm_available and not _pygame.mixer.music.get_busy():
+        _pygame.mixer.music.play()
 
 
 def trigger_alert(message, cooldown=1.0):
-
-    global last_alert_time
-
-    current_time = time.time()
-
-    if current_time - last_alert_time < cooldown:
-        return
-
+    # Called by the application only when an event becomes active.
     print(f"[ALERT] {message}")
-
-    if alarm_available:
-        pygame.mixer.music.play()
-
-    last_alert_time = current_time
+    play_alarm()
 
 
 def stop_alert():
-
-    if alarm_available:
-        pygame.mixer.music.stop()
+    if _alarm_available:
+        _pygame.mixer.music.stop()
 
 
 def close_alert_system():
-
     stop_alert()
-    pygame.quit()
+    if _pygame is not None:
+        try:
+            _pygame.mixer.quit()
+        except Exception:
+            pass

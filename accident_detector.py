@@ -3,7 +3,10 @@ import time
 import pygame
 
 # ============================================================
-# DriveSafe AI - Accident Detection
+# DriveSafe AI - Camera Motion Demonstration
+#
+# This legacy standalone demo measures image motion only. A sudden camera
+# movement is not evidence that a vehicle crash occurred.
 # ============================================================
 
 ALARM_PATH = "sounds/alert.wav"
@@ -56,10 +59,10 @@ if not cap.isOpened():
     exit()
 
 print("==============================================")
-print("DriveSafe AI - Accident Detection")
+print("DriveSafe AI - Camera Motion Demo")
 print("==============================================")
 print("Camera started.")
-print("High sudden motion will be monitored.")
+print("High sudden camera motion will be monitored; this does not detect crashes.")
 print("Press Q to quit.")
 print("==============================================")
 
@@ -72,7 +75,7 @@ previous_gray = None
 high_motion_frames = 0
 last_alert_time = 0
 
-accident_detected = False
+high_motion_detected = False
 
 
 # ============================================================
@@ -145,13 +148,13 @@ while True:
 
             high_motion_frames = 0
 
-            if accident_detected:
-                accident_detected = False
+            if high_motion_detected:
+                high_motion_detected = False
                 stop_alarm()
 
 
         # ====================================================
-        # ACCIDENT DETECTION
+        # CAMERA MOTION WARNING ONLY (not accident detection)
         # ====================================================
 
         current_time = time.time()
@@ -161,7 +164,7 @@ while True:
             and current_time - last_alert_time >= ALERT_COOLDOWN
         ):
 
-            accident_detected = True
+            high_motion_detected = True
 
             last_alert_time = current_time
 
@@ -193,11 +196,11 @@ while True:
         2
     )
 
-    if accident_detected:
+    if high_motion_detected:
 
         cv2.putText(
             frame,
-            "ACCIDENT DETECTED!",
+            "HIGH CAMERA MOTION",
             (30, 90),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
@@ -207,7 +210,7 @@ while True:
 
         cv2.putText(
             frame,
-            "EMERGENCY ALERT",
+            "MOTION WARNING ONLY - NOT CRASH DETECTION",
             (30, 130),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.9,
@@ -229,7 +232,7 @@ while True:
 
 
     cv2.imshow(
-        "DriveSafe AI - Accident Detection",
+        "DriveSafe AI - Camera Motion Demo",
         frame
     )
 
@@ -255,6 +258,6 @@ cv2.destroyAllWindows()
 pygame.quit()
 
 print("==============================================")
-print("DriveSafe AI - Accident Detection stopped.")
+print("DriveSafe AI - Camera Motion Demo stopped.")
 print("Camera closed successfully.")
 print("==============================================")
